@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art Maker</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+    
+        #grid {
+            display: grid;
+            gap: 0.5px;
+            background-color: #ccc;
+        }
+    
+        .cell {
+            width: 12px;
+            height: 12px;
+            background-color: #fff;
+            border: 0.5px solid #ddd;
+        }
+    
+        #controls {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    
+        button:hover {
+            background-color: #0056b3;
+        }
+    
+        #color-picker {
+            padding: 5px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            background-color: #fff;
+        }
+    
+        #color-selector {
+            width: 30px;
+            height: 30px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            background-color: #000000;
+        }
+    
+        .color-history {
+            display: flex;
+            gap: 5px;
+        }
+    
+        .history-color {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    
+        .shape {
+            position: absolute;
+            background-color: transparent;
+            border: 1px solid #007bff;
+            pointer-events: none;
+        }
+    
+        h1 {
+            margin-bottom: 10px;
+            font-size: 24px;
+            color: #333;
+        }
+    
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="color" id="color-picker" value="#000000" onchange="updateSelectorColor()">
+        <div id="color-selector"></div>
+        <button onclick="clearGrid()">Clear</button>
+        <button id="circle-btn">Draw Circle</button>
+        <button id="rect-btn">Draw Rectangle</button>
+    </div>
+    <div class="color-history" id="color-history"></div>
+    <div id="grid"></div>
+
+    <script>
+        const grid = document.getElementById('grid');
+        const colorPicker = document.getElementById('color-picker');
+        const colorSelector = document.getElementById('color-selector');
+        const colorHistory = document.getElementById('color-history');
+        const circleBtn = document.getElementById('circle-btn');
+        const rectBtn = document.getElementById('rect-btn');
+
+        const maxHistory = 5;
+        let historyColors = [];
+        const rows = 50;
+        const cols = 50;
+        let drawingMode = "paint";
+
+        function createGrid() {
+            grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            for (let i = 0; i < rows * cols; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                grid.appendChild(cell);
+            }
+        }
+
+        function paintCell(cell, color) {
+            cell.style.backgroundColor = color;
+        }
+
+        function updateSelectorColor() {
+            const selectedColor = colorPicker.value;
+            colorSelector.style.backgroundColor = selectedColor;
+            addToHistory(selectedColor);
+        }
+
+        function addToHistory(color) {
+            if (historyColors.includes(color)) return;
+
+            if (historyColors.length >= maxHistory) {
+                historyColors.shift();
+                colorHistory.removeChild(colorHistory.firstChild);
+            }
+
+            historyColors.push(color);
+
+            const colorBox = document.createElement('div');
+            colorBox.classList.add('history-color');
+            colorBox.style.backgroundColor = color;
+            colorBox.addEventListener('click', () => selectFromHistory(color));
+            colorHistory.appendChild(colorBox);
+        }
+
+        function selectFromHistory(color) {
+            colorPicker.value = color;
+            updateSelectorColor();
+        }
+
+        function clearGrid() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => cell.style.backgroundColor = '#fff');
+        }
+
+        function createShape(type) {
+            drawingMode = "shape";
+            const shape = document.createElement('div');
+            shape.classList.add('shape');
+            shape.style.borderColor = colorPicker.value;
+            document.body.appendChild(shape);
+
+            let startX, startY, endX, endY;
+
+            function onMouseMove(e) {
+                endX = e.pageX;
+                endY = e.pageY;
+
+                const width = Math.abs(startX - endX);
+                const height = Math.abs(startY - endY);
+                const left = Math.min(startX, endX);
+                const top = Math.min(startY, endY);
+
+                shape.style.left = left + 'px';
+                shape.style.top = top + 'px';
+                shape.style.width = width + 'px';
+                shape.style.height = height + 'px';
+
+                if (type === 'circle') {
+                    shape.style.borderRadius = '50%';
+                } else {
+                    shape.style.borderRadius = '0';
+                }
+            }
+
+            function onMouseUp() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                const rect = shape.getBoundingClientRect();
+                const cells = Array.from(grid.children);
+
+                cells.forEach(cell => {
+                    const cellRect = cell.getBoundingClientRect();
+                    if (
+                        cellRect.left >= rect.left &&
+                        cellRect.right <= rect.right &&
+                        cellRect.top >= rect.top &&
+                        cellRect.bottom <= rect.bottom
+                    ) {
+                        if (type === 'circle' || type === 'ellipse') {
+                            const centerX = rect.left + rect.width / 2;
+                            const centerY = rect.top + rect.height / 2;
+                            const xRadius = rect.width / 2;
+                            const yRadius = rect.height / 2;
+
+                            const distance = Math.pow((cellRect.left + 6 - centerX) / xRadius, 2) +
+                                Math.pow((cellRect.top + 6 - centerY) / yRadius, 2);
+
+                            if (distance <= 1) {
+                                paintCell(cell, colorPicker.value);
+                            }
+                        } else {
+                            paintCell(cell, colorPicker.value);
+                        }
+                    }
+                });
+
+                document.body.removeChild(shape);
+                drawingMode = "paint";
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+
+            document.addEventListener('mousedown', e => {
+                startX = e.pageX;
+                startY = e.pageY;
+                shape.style.left = startX + 'px';
+                shape.style.top = startY + 'px';
+            }, { once: true });
+        }
+
+        circleBtn.addEventListener('click', () => {
+            drawingMode = "shape";
+            createShape('circle');
+        });
+
+        rectBtn.addEventListener('click', () => {
+            drawingMode = "shape";
+            createShape('rect');
+        });
+
+        let isMouseDown = false;
+        document.body.addEventListener('mousedown', () => (isMouseDown = true));
+        document.body.addEventListener('mouseup', () => (isMouseDown = false));
+
+        createGrid();
+        updateSelectorColor();
+        grid.addEventListener('mouseover', event => {
+            if (drawingMode=="paint"&&isMouseDown && event.target.classList.contains('cell')) {
+                paintCell(event.target, colorPicker.value);
+            }
+        });
+    </script>
+</body>
+</html>
